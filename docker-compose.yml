@@ -38,3 +38,4 @@ services:
 volumes:
   esdata:
     driver: local
+

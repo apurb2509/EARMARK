@@ -9,3 +9,4 @@ healthRouter.get('/', (_req, res) => {
     ts: new Date().toISOString(),
   });
 });
+

@@ -64,3 +64,4 @@ function sortKeys(obj: unknown): unknown {
 }
 
 verifyChain().catch(e => { console.error(e); process.exit(1); });
+

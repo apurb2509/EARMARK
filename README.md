@@ -142,3 +142,4 @@ Coding assistants: Antigravity (Google DeepMind)
 ## License
 
 MIT © 2026 EARMARK Contributors
+

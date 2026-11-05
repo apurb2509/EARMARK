@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "seed": "tsx scripts/seed.ts",
-    "verify-chain": "tsx scripts/verifyChain.ts"
+    "verify-chain": "tsx scripts/verifyChain.ts",
+    "register-webhook": "tsx scripts/registerWebhook.ts"
   },
   "dependencies": {
     "@paypal/agent-toolkit": "^0.1.0",
@@ -39,3 +40,4 @@
     "@types/node": "^22.0.0"
   }
 }
+

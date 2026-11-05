@@ -45,3 +45,4 @@ This is a **sandbox proof of concept**. Known architectural limitations:
 - Sandbox vendor emails are not real.
 - `.env` is gitignored; `.env.example` contains only placeholders.
 - AG Grid and Bryntum license keys are never committed.
+

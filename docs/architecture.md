@@ -73,3 +73,4 @@
 - Daily Zapier witness: head hash emailed / written to sheet
 - Public page shows current head hash
 - Verify button: recompute chain + replay balances + cross-check PayPal batch
+

@@ -179,3 +179,4 @@ export interface Incident {
   resolvedAt?: string;
   createdAt: string;
 }
+

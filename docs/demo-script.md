@@ -78,3 +78,4 @@ If the hosted Render URL is unreachable:
 4. All endpoints and the console are identical
 
 This fallback is labeled **DEMO_MODE** in the UI header bar when active.
+
