@@ -1,0 +1,41 @@
+{
+  "name": "earmark",
+  "version": "0.1.0",
+  "description": "Donor-restricted money enforced by code, settled on PayPal",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "tsx watch src/server/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "seed": "tsx scripts/seed.ts",
+    "verify-chain": "tsx scripts/verifyChain.ts"
+  },
+  "dependencies": {
+    "@paypal/agent-toolkit": "^0.1.0",
+    "@elastic/elasticsearch": "^8.17.0",
+    "ai": "^4.0.0",
+    "@ai-sdk/google": "^1.0.0",
+    "express": "^4.21.0",
+    "zod": "^3.23.0",
+    "js-yaml": "^4.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "uuid": "^10.0.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "@types/express": "^5.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/cors": "^2.8.17",
+    "@types/uuid": "^10.0.0",
+    "@types/node": "^22.0.0"
+  }
+}

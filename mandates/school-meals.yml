@@ -1,0 +1,44 @@
+fund: SCHOOL-MEALS
+version: 1
+donorIntent: "Hot meals and nutrition supplies for school children in need"
+purposes:
+  - food_staples
+  - cooked_meals
+  - water_sanitation
+  - education
+excluded:
+  - admin
+  - fundraising
+  - travel
+vendors:
+  allow:
+    - vendor-annapurna
+    - vendor-wholesale
+caps:
+  perPayoutHardUsd: 400
+  perPayoutHumanUsd: 150
+  perDayUsd: 800
+  adminMaxPct: 5
+priceGuard:
+  maxOverMarketPct: 20
+  requireBenchmark: true
+tranches:
+  advanceMaxPct: 50
+  balanceOn: DELIVERY_CONFIRMED
+window:
+  spendBy: "2026-12-31"
+approvals:
+  humanIf:
+    - overHumanCap
+    - newVendor
+    - noBenchmark
+    - anyRefund
+  twoPersonOverUsd: 250
+containment:
+  freezeIf:
+    - dailySpendOver650
+    - payoutsPerHourOver6
+    - atRiskOver20Pct
+amendments:
+  loosen: NEW_ENVELOPE_ONLY
+  tighten: TREASURER

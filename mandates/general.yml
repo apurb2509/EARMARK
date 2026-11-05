@@ -1,0 +1,43 @@
+fund: GENERAL
+version: 1
+donorIntent: "General community support — treasurer discretion with donor approval"
+purposes:
+  - food_staples
+  - cooked_meals
+  - medical_supplies
+  - emergency_relief
+  - education
+  - shelter
+  - water_sanitation
+excluded:
+  - fundraising
+vendors:
+  block:
+    - vendor-blocked
+caps:
+  perPayoutHardUsd: 500
+  perPayoutHumanUsd: 100
+  perDayUsd: 1000
+  adminMaxPct: 10
+priceGuard:
+  maxOverMarketPct: 25
+  requireBenchmark: false
+tranches:
+  advanceMaxPct: 100
+  balanceOn: NONE
+window:
+  spendBy: "2026-12-31"
+approvals:
+  humanIf:
+    - overHumanCap
+    - newVendor
+    - anyRefund
+  twoPersonOverUsd: 200
+containment:
+  freezeIf:
+    - dailySpendOver800
+    - payoutsPerHourOver6
+    - atRiskOver25Pct
+amendments:
+  loosen: TREASURER
+  tighten: TREASURER

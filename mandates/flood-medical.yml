@@ -1,0 +1,46 @@
+fund: FLOOD-MEDICAL
+version: 1
+donorIntent: "Medical supplies and first-aid for flood-affected families"
+purposes:
+  - medical_supplies
+  - emergency_relief
+  - water_sanitation
+excluded:
+  - admin
+  - fundraising
+  - travel
+  - food_staples
+vendors:
+  allow:
+    - vendor-medplus
+    - vendor-wholesale
+  block:
+    - vendor-blocked
+caps:
+  perPayoutHardUsd: 600
+  perPayoutHumanUsd: 200
+  perDayUsd: 1200
+  adminMaxPct: 5
+priceGuard:
+  maxOverMarketPct: 15
+  requireBenchmark: true
+tranches:
+  advanceMaxPct: 60
+  balanceOn: DELIVERY_CONFIRMED
+window:
+  spendBy: "2026-12-31"
+approvals:
+  humanIf:
+    - overHumanCap
+    - newVendor
+    - noBenchmark
+    - anyRefund
+  twoPersonOverUsd: 300
+containment:
+  freezeIf:
+    - dailySpendOver1000
+    - payoutsPerHourOver8
+    - atRiskOver20Pct
+amendments:
+  loosen: NEW_ENVELOPE_ONLY
+  tighten: TREASURER
