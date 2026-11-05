@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "seed": "tsx scripts/seed.ts",
     "verify-chain": "tsx scripts/verifyChain.ts",
+    "invariant-check": "tsx scripts/invariantCheck.ts",
     "register-webhook": "tsx scripts/registerWebhook.ts"
   },
   "dependencies": {

@@ -1,19 +1,21 @@
 // src/server/routes/webhook.ts — POST /api/paypal/webhook
 // Receives raw Buffer (set up in server/index.ts before express.json()).
-// Verifies signature, dedupes by event ID, routes to handlers.
+// Verifies signature → dedupes by event ID (ES op_type=create) → routes → appends to ledger.
 
 import { Router, Request, Response } from 'express';
 import { verifyWebhookSignature, WEBHOOK_EVENTS } from '../../paypal/webhooks.js';
+import { getElasticClient, INDICES } from '../../elastic/client.js';
+import { appendLedgerEntry } from '../../ledger/append.js';
+import { creditDonation } from '../../ledger/funds.js';
+import { createLot, getLotByDonationId } from '../../ledger/lots.js';
 
 export const webhookRouter = Router();
-
-// In-memory dedupe for dev; commit 3 replaces with Elasticsearch op_type=create
-const seenEventIds = new Set<string>();
 
 webhookRouter.post('/', async (req: Request, res: Response) => {
   const rawBody = req.body as Buffer;
 
   // ── 1. Signature verification ────────────────────────────────────────────
+  // Note: PayPal sandbox simulator events are unsigned — only use real sandbox transactions.
   try {
     await verifyWebhookSignature(
       {
@@ -41,25 +43,57 @@ webhookRouter.post('/', async (req: Request, res: Response) => {
   const eventId: string = event.id;
   const eventType: string = event.event_type;
 
-  // ── 3. Dedupe by event ID ────────────────────────────────────────────────
-  if (seenEventIds.has(eventId)) {
-    console.log(`[webhook] Duplicate event ignored: ${eventId}`);
-    return res.status(200).json({ received: true, duplicate: true });
+  // ── 3. Dedupe by event ID in Elasticsearch (op_type=create) ─────────────
+  const es = getElasticClient();
+  try {
+    await es.index({
+      index: INDICES.WEBHOOKS,
+      id: eventId,
+      op_type: 'create',
+      document: {
+        eventId,
+        eventType,
+        payload: event,
+        receivedAt: new Date().toISOString(),
+        handled: false,
+      },
+    });
+  } catch (err: any) {
+    if (err?.meta?.statusCode === 409) {
+      console.log(`[webhook] Duplicate event ignored: ${eventId}`);
+      return res.status(200).json({ received: true, duplicate: true });
+    }
+    throw err;
   }
-  seenEventIds.add(eventId);
 
-  console.log(`[webhook] Received: ${eventType} (${eventId})`);
+  // ── 4. Append raw webhook to ledger ─────────────────────────────────────
+  await appendLedgerEntry('WEBHOOK', {
+    eventId,
+    eventType,
+    summary: `PayPal event ${eventType}`,
+  });
 
-  // ── 4. Route to handler ──────────────────────────────────────────────────
+  console.log(`[webhook] Processing: ${eventType} (${eventId})`);
+
+  // ── 5. Route to domain handler ───────────────────────────────────────────
   try {
     await routeEvent(eventType, event);
+
+    // Mark handled
+    await es.update({
+      index: INDICES.WEBHOOKS,
+      id: eventId,
+      doc: { handled: true },
+    });
   } catch (err) {
     console.error(`[webhook] Handler error for ${eventType}:`, err);
-    // Still return 200 so PayPal doesn't retry endlessly; log the error
+    // Return 200 to avoid PayPal retry storm; error is logged and can be replayed
   }
 
   res.status(200).json({ received: true });
 });
+
+// ── Event handlers ────────────────────────────────────────────────────────────
 
 async function routeEvent(eventType: string, event: any): Promise<void> {
   switch (eventType) {
@@ -83,7 +117,7 @@ async function routeEvent(eventType: string, event: any): Promise<void> {
     case WEBHOOK_EVENTS.PAYOUT_ITEM_BLOCKED:
     case WEBHOOK_EVENTS.PAYOUT_BATCH_SUCCESS:
     case WEBHOOK_EVENTS.PAYOUT_BATCH_DENIED:
-      console.log(`[webhook] ${eventType} — handler wired in commit 7`);
+      console.log(`[webhook] ${eventType} — payout handler wired in commit 7`);
       break;
     default:
       console.log(`[webhook] Unhandled event type: ${eventType}`);
@@ -96,18 +130,73 @@ async function handleCaptureCompleted(event: any): Promise<void> {
   const captureStatus: string = resource.status;
 
   if (captureStatus !== 'COMPLETED') {
-    console.log(`[webhook] Capture ${captureId} status is ${captureStatus} — not crediting`);
+    console.log(`[webhook] Capture ${captureId} is ${captureStatus} — not crediting yet`);
     return;
   }
 
-  // Extract donation context from supplementary_data or custom_id
-  const purchaseUnit = resource.supplementary_data?.related_ids?.order_id;
-  const amountValue: string = resource.amount?.value;
-  const currency: string = resource.amount?.currency_code;
+  // Extract donation context from the order's custom_id and invoice_id
+  // PayPal returns supplementary_data.related_ids.order_id on captures
+  const amountValue: string = resource.amount?.value ?? '0';
+  const currency: string = resource.amount?.currency_code ?? 'USD';
 
-  console.log(`[webhook] ✓ CAPTURE COMPLETED: captureId=${captureId} amount=${currency} ${amountValue}`);
+  if (currency !== 'USD') {
+    console.warn(`[webhook] Non-USD capture ignored: ${currency}`);
+    return;
+  }
 
-  // Commit 3 wires this into the ledger to create the lot and credit the fund.
-  // For now, log the event so the sandbox wiring is proven.
+  // Convert to integer cents (safe — no floating point)
+  const amountCents = Math.round(parseFloat(amountValue) * 100);
+
+  // The invoice_id on the purchase_unit is our donationId
+  // The custom_id is "fundId:mandateVersion"
+  // We retrieve these from the supplementary data or by querying the order
+  // For now, extract from the resource's custom_id if present
+  const customId: string = resource.custom_id ?? '';
+  const invoiceId: string = resource.invoice_id ?? '';
+  const [fundId, mandateVersionStr] = customId.split(':');
+  const mandateVersion = parseInt(mandateVersionStr ?? '1', 10);
+  const donationId = invoiceId;
+
+  if (!fundId || !donationId) {
+    console.warn(`[webhook] Cannot extract fundId/donationId from capture ${captureId}. custom_id="${customId}" invoice_id="${invoiceId}"`);
+    return;
+  }
+
+  // Guard: don't double-credit if lot already exists
+  const existing = await getLotByDonationId(donationId);
+  if (existing) {
+    console.log(`[webhook] Lot already exists for donation ${donationId}, skipping credit`);
+    return;
+  }
+
+  // ── Append DONATION_CONFIRMED ledger entry ────────────────────────────────
+  await appendLedgerEntry('DONATION_CONFIRMED', {
+    fundId,
+    donationId,
+    captureId,
+    amountCents,
+    mandateVersion,
+  });
+
+  // ── Create the donation lot ───────────────────────────────────────────────
+  const lot = await createLot({
+    donationId,
+    captureId,
+    fundId,
+    amountCents,
+    mandateRef: `${fundId}:${mandateVersion}`,
+  });
+
+  // ── Append LOT_CREATED ledger entry ───────────────────────────────────────
+  await appendLedgerEntry('LOT_CREATED', {
+    lotId: lot.lotId,
+    donationId,
+    fundId,
+    amountCents,
+  });
+
+  // ── Credit the fund projection ────────────────────────────────────────────
+  await creditDonation(fundId, amountCents);
+
+  console.log(`[webhook] ✓ Lot created: ${lot.lotId} | fund=${fundId} | +${amountCents}¢`);
 }
-

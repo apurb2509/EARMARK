@@ -1,15 +1,27 @@
 // src/server/routes/funds.ts — GET /api/funds, GET /api/funds/:id
 
 import { Router } from 'express';
+import { listFunds, getFundProjection } from '../../ledger/funds.js';
 
 export const fundsRouter = Router();
 
-// Placeholder — wired to Elasticsearch projections in commit 3
 fundsRouter.get('/', async (_req, res) => {
-  res.json({ funds: [], message: 'Fund projections wired in commit 3' });
+  try {
+    const funds = await listFunds();
+    res.json({ funds });
+  } catch (err) {
+    console.error('[funds] list error:', err);
+    res.status(500).json({ error: 'Failed to fetch funds' });
+  }
 });
 
 fundsRouter.get('/:fundId', async (req, res) => {
-  res.json({ fundId: req.params.fundId, message: 'Fund projection wired in commit 3' });
+  try {
+    const versioned = await getFundProjection(req.params.fundId);
+    if (!versioned) return res.status(404).json({ error: 'Fund not found' });
+    res.json(versioned.doc);
+  } catch (err) {
+    console.error('[funds] get error:', err);
+    res.status(500).json({ error: 'Failed to fetch fund' });
+  }
 });
-
